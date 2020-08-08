@@ -1,4 +1,5 @@
 ## Index page
+{% raw %}
 ```c++
 const std::string* cmMakefile::GetDef(const std::string& name) const
 {
@@ -29,3 +30,4 @@ const std::string* cmMakefile::GetDef(const std::string& name) const
   return def;
 }
 ```
+{% endraw %}
