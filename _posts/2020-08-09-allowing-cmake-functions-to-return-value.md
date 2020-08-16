@@ -427,7 +427,7 @@ understand, review and support, then hand-written parser.
 
 #### Symbol locations
 
-Bison makes symbol locations tracking almost automatic. With [simple action]((https://github.com/OleksandrKvl/cmake_parser/blob/master/src/scanner.l#L73))
+Bison makes symbol locations tracking almost automatic. With [simple action](https://github.com/OleksandrKvl/cmake_parser/blob/master/src/scanner.l#L73)
 you only need to track lines manually.
 
 #### Error messages
