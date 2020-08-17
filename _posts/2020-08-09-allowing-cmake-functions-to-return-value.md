@@ -81,7 +81,7 @@ if(IsFeatureAvailable()){}
 
 Why should I know how those checks are performed?
 
-Again, you can handle all that stuff, CMake has been successively used for years. But why not make it simpler? CMake is a big part of C++ so why 
+Again, you can handle all that stuff, CMake has been successfully used for years. But why not make it simpler? CMake is a big part of C++ so why 
 shouldn't we make it easier for new people as we do with C++ itself?
 
 
