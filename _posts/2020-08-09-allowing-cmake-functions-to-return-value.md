@@ -343,7 +343,7 @@ vector{
 }
 ```
 
-Too much vectors %)
+Too many vectors %)
 
 #### RPN
 
