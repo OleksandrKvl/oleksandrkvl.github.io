@@ -143,13 +143,15 @@ f()
 ```
 
 Here's how it's stored in memory:
-- `cmListFile` - stores commands at lines [1; 6] (ranges are closed)
+- `cmListFile` - stores commands at lines [1; 9] (ranges are closed)
 - `function() blocker` - stores commands at lines [2; 6]
 - `if() blocker` - stores commands at lines [4; 5]
 
 That's the problem, blockers copy same commands multiple times depending on 
 the code structure. It's quite expensive because each command contains two strings
-(for its name) and a vector of strings(for arguments).
+(for its name) and a vector of strings(for arguments). Moreover, it does it 
+multiple times. Inner blocker are populated each time outer one is executed. In
+the above example, if-blocker will be recreated again on each f() call.
 
 #### Solution
 
