@@ -232,7 +232,7 @@ decreased from 394k to 280k.
 
 For more complex configurations the economy is of course lower. Partly because 
 there's an old parsing routine that allocates a lot and becomes the major memory 
-consumer. Here are results for heaptrack itself and Google benchmark 
+consumer(I've fixed them in the [next post](https://oleksandrkvl.github.io/2020/09/06/reducing-cmake-heap-usage-2.html)). Here are results for heaptrack itself and Google benchmark 
 configuration step (total allocated bytes (number of allocations)).
 
 Heaptrack:
