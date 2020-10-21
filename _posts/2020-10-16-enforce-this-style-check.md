@@ -300,15 +300,15 @@ matcher for both cases becomes:
 
 ```cpp
 cxxMethodDecl(
-    isDefinition(), unless(anyOf(isImplicit(), isDefaulted())),
+    isDefinition(), isUserProvided(),
     forEachDescendant(
         memberExpr(has(ignoringImpCasts(cxxThisExpr().bind("thisExpr"))))
             .bind("memberExpr")))
     .bind("methodDecl")
 ```
 
-`unless(anyOf(isImplicit(), isDefaulted())` part is needed to skip 
-compiler-generated function definitions.
+`isUserProvided()` is self-explainable, we're interested only in user-provided
+functions, not in compiler-generated ones.
 
 #### Fix
 
