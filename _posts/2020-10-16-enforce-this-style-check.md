@@ -338,7 +338,7 @@ Applying to CMake codebase:
 - enforce explicit `this`: 129 files changed, 4689 insertions
 - enforce implicit `this`: 406 files changed, 23237 insertions
 
-Full source code is [here](https://github.com/OleksandrKvl/clang-tidy-playground).    
+Full source code is [here](https://github.com/OleksandrKvl/clang-tidy-playground/blob/master/misc/EnforceThisStyleCheck.cpp).    
 CMake branch with explicit `this` is [here](https://gitlab.kitware.com/OleksandrKvl/cmake/-/tree/explicit-this-fix).    
 CMake branch with implicit `this` is [here](https://gitlab.kitware.com/OleksandrKvl/cmake/-/tree/implicit-this-fix).
 
