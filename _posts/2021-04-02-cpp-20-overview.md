@@ -1509,8 +1509,8 @@ evaluated at compile-time. This allows to have both compile and run time(with
 asm now) code inside a single function:
 
 ```cpp
-constexpr add(int a, int b){
-    if constexpr(std::is_constant_evaluated()){
+constexpr int add(int a, int b){
+    if (std::is_constant_evaluated()){
         return a + b;
     }
     else{
@@ -1530,18 +1530,25 @@ compile-time" but, as the authors said, "C++ doesn't make a clear distinction
 between 
 compile-time and run-time". Instead, C++20 declares a [list](https://en.cppreference.com/w/cpp/types/is_constant_evaluated)
 of expressions that are *manifestly constant-evaluated* and this function returns
-`true` during their evaluation and `false` otherwise.
+`true` during their evaluation and `false` otherwise.  
+Be careful not to use this function directly in such *manifestly constant-evaluated*
+expressions(e.g. `if constexpr`, array size, template arguments, etc.).
+By definition, in such cases 
+`std::is_constant_evaluated()` returns `true` even if the enclosing function
+is not constant evaluated. Thanks to user **destroyerrocket** from [/r/cpp](https://www.reddit.com/r/cpp/)
+for bringing up this issue.
+
 
 ```cpp
 constexpr int GetNumber(){
-    if(std::is_constant_evaluated()){
+    if(std::is_constant_evaluated()){   // should not be `if constexpr`
         return 1;
     }
     return 2;
 }
 
 constexpr int GetNumber(int x){
-    if(std::is_constant_evaluated()){
+    if(std::is_constant_evaluated()){   // should not be `if constexpr`
         return x;
     }
     return x+1;
@@ -1566,6 +1573,27 @@ void f(){
 
     assert(v4 == 1);
     assert(v5 == 2);    
+}
+
+// pathological examples
+// always returns `true`
+constexpr bool IsInConstexpr(int){
+    if constexpr(std::is_constant_evaluated()){ // always `true`
+        return true;
+    }
+    return false;
+}
+
+// always returns `sizeof(int)`
+constexpr std::size_t GetArraySize(int){
+    int arr[std::is_constant_evaluated()];  // always int arr[1];
+    return sizeof(arr);
+}
+
+// always returns `1`
+constexpr std::size_t GetStdArraySize(int){
+    std::array<int, std::is_constant_evaluated()> arr;  // std::array<int, 1>
+    return arr.size();
 }
 ```
 
