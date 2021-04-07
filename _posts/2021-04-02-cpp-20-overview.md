@@ -3136,8 +3136,8 @@ changed. Until C++20 it has no effect, now it ends object's lifetime:
 int f(){
     using T = int;
     T n{1};
-    a.~T();     // no effect in C++17, ends n's lifetime in C++20
-    return a;   // OK in C++17, UB in C++20, n is dead now
+    n.~T();     // no effect in C++17, ends n's lifetime in C++20
+    return n;   // OK in C++17, UB in C++20, n is dead now
 }
 ```
 
