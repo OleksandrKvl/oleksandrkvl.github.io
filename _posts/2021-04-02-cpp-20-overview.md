@@ -2533,15 +2533,32 @@ int i5 = UINT_MAX;  // -1
 ## `__VA_OPT__` for variadic macros {#va-opt}
 
 Allows more simple handlining of variadic macros. Expands to nothing if 
-`__VA_ARGS__` is empty and to its content otherwise:
+`__VA_ARGS__` is empty and to its content otherwise. It's especially useful
+when macro calls a function with some predefined argument(s) followed be optional
+`__VA_ARGS__`. In such a case, `__VA_OPT__` allows to omit the trailing comma when
+`__VA_ARGS__` are empty(thanks to Jérôme Marsaguet for bringing up this issue).
 
 ```cpp
-#define LOG(...)                   \
-    __VA_OPT__(printf(__VA_ARGS);) \
-    printf("\n");
+#define LOG1(...)                   \
+    __VA_OPT__(std::printf(__VA_ARGS);) \
+    std::printf("\n");
 
-LOG();                      // printf("\n");
-LOG("number is %n", 12);    // printf("number is %n", 12); printf("\n");
+LOG1();                      // std::printf("\n");
+LOG1("number is %d", 12);    // std::printf("number is %d", 12); std::printf("\n");
+
+#define LOG2(msg, ...) \
+    std::printf("[" __FILE__ ":%d] " msg, __LINE__, __VA_ARGS__)
+#define LOG3(msg, ...) \
+    std::printf("[" __FILE__ ":%d] " msg, __LINE__ __VA_OPT__(,) __VA_ARGS__)
+
+// OK, std::printf("[" "file.cpp" ":%d] " "%d errors.\n", 14, 0);
+LOG2("%d errors\n", 0);
+
+// Error, std::printf("[" "file.cpp" ":%d] " "No errors\n", 17, );
+LOG2("No errors\n");
+
+// OK, std::printf("[" "file.cpp" ":%d] " "No errors\n", 20);
+LOG3("No errors\n");
 ```
 
 ---
@@ -2552,29 +2569,50 @@ This fix allows exception specification of an explicitly defaulted function to
 differ from such specification of implicitly declared function. Until C++20 such 
 declarations made the program ill-formed. Now it's allowed and, of course,
 the provided exception specification is the actual one. This is useful when you
-want to enforce `noexcept`-ness of some operations.
+want to enforce `noexcept`-ness of some operations. For example, due to
+strong exception guarantee, `std::vector` *moves* its elements into a new storage
+only if their move constructors are `noexcept`, otherwise elements are *copied*.
+Sometimes it's desirable to allow this faster implementation even if elements
+can actually throw during move. As usual, when a function marked `noexcept` throws,
+`std::terminate()` is called.
 
 ```cpp
-struct S {
+struct S1{
     // ill-formed until C++20 because implicit constructor is noexcept(true)
-    S() noexcept(false) = default;
+    S1(S1&&)noexcept(false) = default; // can throw
 };
 
-class X {
-public:
-    // other members...
-    X(X&&) noexcept = default;
-
-private:
-    std::map<int> m;
+struct S2{
+    S2(S2&&) noexcept = default;
+    // implicitly generated move constructor would be `noexcept(false)`
+    // because of `s1`, now it's enforced to be `noexcept(true)`
+    S1 s1;
 };
 
-std::vector<X> v1;
+static_assert(std::is_nothrow_move_constructible_v<S1> == false);
+static_assert(std::is_nothrow_move_constructible_v<S2> == true);
 
-// somewhere in generic code
-std::vector<X> v2 = std::move_if_noexcept(v1);
-// we want X to be efficient so we prefer move constructor to call std::terminate 
-// if moving of std::map<int> throws
+struct X1{
+    X1(X1&&) noexcept = default;
+    std::map<int, int> m;   // `std::map(std::map&&)` can throw
+};
+
+struct X2{
+    // same as implicitly generated, it's `noexcept(false)` because of `std::map`
+    X2(X2&&) = default;
+    std::map<int, int> m;   // `std::map(std::map&&)` can throw
+};
+
+std::vector<X1> v1;
+std::vector<X2> v2;
+// ... at some point, `push_back()` needs to reallocate storage
+
+// efficiently uses `X1(X1&&)` to move the elements to a new storage,
+// calls `std::terminate()` if it throws
+v1.push_back(X1{});
+
+// uses `X2(const X2&)`, thus, copies, not moves elements to a new storage
+v2.push_back(X2{});
 ```
 
 ---
