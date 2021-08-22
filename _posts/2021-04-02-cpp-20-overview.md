@@ -2391,7 +2391,7 @@ namespace A::B{
 
 Scoped enumerations are great, the only problem with them is their verbose usage
 (e.g. `my_enum::enum_value`). For example, in a switch-statement that checks
-every possible enum value, `my_enum::` part should be repeated for each case-lable.
+every possible enum value, `my_enum::` part should be repeated for each case-label.
 *Using enum declaration* introduces all enumeration's names into the
 current scope so they are visible as unqualified names and `my_enum::` part can
 be omitted. It can be applied to unscoped enumerations and even to a single
