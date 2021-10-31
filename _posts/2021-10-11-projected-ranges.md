@@ -20,6 +20,7 @@ post_url: 2021-10-11-projected-ranges
   * [Impact on algorithms](#impact-on-algos)
   * [Reducing number of dereferences](#reducing-derefs)
   * [root() method](#root-method)
+  * [Major flaw](#the-flaw)
 * [Other use-cases](#other-use-cases)
 * [The role of std::views::transform](#transform)
 * [Demo](#demo)
@@ -33,7 +34,13 @@ When I first watched range-related talks, I liked the idea of projections. I
 played with them a bit and still liked them. However, after trying to write
 range-based algorithms I found them not good enough and not pleasant to work with.
 In this post I'll explain why I don't like range projections in their current
-form and how I propose to fix them(demo implementation is provided).
+form and how I propose to fix them (demo implementation is provided).
+
+*Update. After this article was published, I received some feedback and realized
+that the proposed design has one problem. I described it in the section
+[Major flaw](#the-flaw) and left the rest of the article untouched. Please keep that
+in mind while reading it. Thanks to all the people who shared their feedback and
+thoughts.*
 
 ---
 
@@ -41,7 +48,7 @@ form and how I propose to fix them(demo implementation is provided).
 
 If you are not familiar with projections, here's a brief explanation. 
 Projection is an *invocable* entity which is applied to a range element before the
-algorithm's logic will use it. It can be a lambda, pointer-to-member(either data
+algorithm's logic will use it. It can be a lambda, pointer-to-member (either data
 or function) or just a function pointer.
 Along this article I will use these two structures for examples:
 
@@ -62,7 +69,7 @@ struct X
 ```
 
 If you don't know what `operator<=>` is, don't worry, in the context of this
-article you only need to know that it provides all the comparison operations(
+article you only need to know that it provides all the comparison operations (
 `==, !=, <, <=, >, >=`) for both `X` and `Y`, they operate in a member-wise 
 fashion. Ok, back to the subject, imagine that we 
 want to sort
@@ -422,7 +429,7 @@ reference to `value_type` (but not required), must be convertible to `iter_value
 
 `iter_rvalue_reference_t iter_move(it)` - customization
 point for moving value out of iterator, usually returns rvalue reference to
-`value_type`(but not required). Also must be convertible to `iter_value_t`. If
+`value_type` (but not required). Also must be convertible to `iter_value_t`. If
 not defined by iterator, `std::move(*it)` is used.
 
 `void iter_swap(it1, it2)` - customization point for swapping values between
@@ -499,16 +506,17 @@ auto non_generic_comparator = [](
 Note that since C++20, `iter_reference_t` is not required to be a true reference
 for any kind of iterator which effectively allows random-access proxy iterators.
 
-Range-based versions of existing algorithms must be changed like this(current
+Range-based versions of existing algorithms must be changed like this (current
 `libstdc++` still doesn't use `iter_move()`/`iter_swap()` in its range algorithms):
 
 ```cpp
 Iterator it1, it2;
 
 // pre C++20 algorithms:
-auto copied = *it1;             // copy
-auto moved = std::move(*it1);   // move
-std::iter_swap(it1, it2);       // swap
+using value_type = std::iterator_traits<Iterator>;
+value_type copied = *it1;             // copy
+value_type moved = std::move(*it1);   // move
+std::iter_swap(it1, it2);             // swap
 
 // C++20 algorithms:
 using value_type = std::iter_value_t<Iterator>;
@@ -517,14 +525,14 @@ value_type moved = std::ranges::iter_move(it);  // move
 std::ranges::iter_swap(it1, it2);               // swap
 ```
 
-The main purpose of this design(as I understand it) is to allow proxy iterators
+The main purpose of this design (as I understand it) is to allow proxy iterators
 of any kind, which, in theory, allows more "indirect" iterators and their usage
 with standard algorithms. Imaginary proxy-iterator must implement:
-- corresponding to its category functions(`operator++()`, `operator[]`, etc.)
+- corresponding to its category functions (`operator++()`, `operator[]`, etc.)
 - custom proxy-reference type which must have read/write/conversions to/from 
 `value_type`, itself and `iter_rvalue_reference_t`
 - custom `iter_move()` and `iter_swap()`
-- specialize necessary `basic_common_reference`(a helper for `common_reference`
+- specialize necessary `basic_common_reference` (a helper for `common_reference`
 described above) between its `value_type`, 
 `iter_reference_t`, `iter_rvalue_reference_t` to a type which is at least
 declared
@@ -541,9 +549,9 @@ sort(v | projection(&X::x));    // sorts `v` by `X::x` member
 ```
 
 For this to work, `operator*()` must return a reference-like thing which points to
-the projected value(`X::x` member in this
+the projected value (`X::x` member in this
 case) so that the comparator will use it instead of the whole object. On the other
-hand, copy/move/swap/assign operations must operate on the non-projected object(`X`).
+hand, copy/move/swap/assign operations must operate on the non-projected object (`X`).
 In other words, we have two distinct types:
 - `value_type` - the type exposed through `operator*()`, projected type
 - `iter_root_t` - the type of underlying object, root type
@@ -553,7 +561,7 @@ between `int x;` and `struct X;` types. One can argue that in fact we have `X`
 and `&X::x` types and there is a `member-of` relation but in reality projection
 can also be a pure transformation, e.g.,
 from `std::string` to `int` so any kind of relationship doesn't make sense here.  
-In contrast, the existing design doesn't leave space for a second type(`iter_root_t`).
+In contrast, the existing design doesn't leave space for a second type (`iter_root_t`).
 It allows proxy-reference as `iter_reference_t` but it enforces strict
 relationships between it and `value_type` in terms of `common_reference`
 requirements. At most, it allows representing logically single `value_type`
@@ -566,10 +574,10 @@ Niebler [says it's hard](https://twitter.com/ericniebler/status/1363892564831711
 you can check his implementation [here](https://github.com/ericniebler/range-v3/blob/master/include/range/v3/iterator/basic_iterator.hpp)), how can you expect people
 to write their own iterators using it? It's hard because if you need to use
 proxy-reference, you need first to check and understand algorithm requirements
-on operations/conversions proxy-reference(`iter_reference_t`), `value_type` and
+on operations/conversions proxy-reference (`iter_reference_t`), `value_type` and
 `iter_rvalue_reference_t` should support and only then *try* to implement it.
 
-To summarize, there are two main problems: over-complicated design and it's
+To summarize, there are two main problems: over-complicated design and its
 inability to support true abstraction between two unrelated types. Now, let's
 fix it.
 
@@ -596,14 +604,14 @@ Now we need similar functions for `iter_root_t`:
 And to simplify assignment:
 - `iter_assign_from(it, value)` to assign whatever is needed
 
-All these new functions are customization point objects(CPO) which means
+All these new functions are customization point objects (CPO) which means
 they are not required to be implemented if the iterator is happy with the default
 behavior. One of my goals was to preserve backward compatibility with all
 existing iterators so default implementations mostly forward to the old
 API. If you are not familiar with typical CPO implementation, the idea is quite
 simple: you call customized for a specific type function or the default 
 implementation. The
-presence of a customized function is detected via ADL check(`has_adl_[cpo_name]`
+presence of a customized function is detected via ADL check (`has_adl_[cpo_name]`
 below). Implementation is located inside `struct` that's why in the code below
 `operator()(...)` is used instead of a plain function. `stdf` is a namespace
 name where I put all the new stuff, not a typo.
@@ -791,7 +799,7 @@ don't need custom `iter_move()` because default implementation operates on the
 result of `operator*()`. Since we want copy/move/assign/swap operations to 
 operate on 
 the root value, we simply forward these calls to it. Note that the last three
-functions are enabled(using `requires`-clause) only in case when the underlying 
+functions are enabled (using `requires`-clause) only in case when the underlying 
 iterator 
 customizes them. Otherwise, their default versions will operate on
 the basis of `iter_copy_root()` which is exactly what's needed. There's another
@@ -1053,6 +1061,74 @@ v.erase(stdf::root(removed.begin()), stdf::root(removed.end()));
 
 ---
 
+### Major flaw {#the-flaw}
+
+Unfortunately, after this article was published I received some feedback and
+realized that this design cannot replace projections when the algorithm operates on
+*input range/iterator*. The value represented by the input iterator is valid until
+the iterator is not incremented, all the copies of the iterator may be invalidated
+afterward. This restriction allows only single-pass algorithms. Consider one of
+the simplest algorithm, `max`:
+
+```cpp
+template<typename R, typename C = std::less<>>
+auto max(R&& r, C pred = {}, auto proj)
+{
+    auto first = std::ranges::begin(r);
+    auto last = std::ranges::end(r);
+    
+    std::ranges::range_value_t<R> result = *first;
+    while(++first != last)
+    {
+        auto&& tmp = *first;
+        if(invoke(pred, invoke(proj, result), invoke(proj, tmp))){
+            result = (decltype(tmp) &&)tmp;
+        }
+    }
+
+    return result;
+}
+```
+
+Here, we need to store a copy of the current max element in the `result`
+variable. The projection `proj` is later applied to that copied element and
+that's the problem. In the proposed design, I assumed that projected value is
+always accessed through iterator, not through the root value. Here's the
+implementation using new design:
+
+```cpp
+template<typename Rng, typename Cmp = std::less<>>
+stdf::iter_root_t<std::ranges::iterator_t<Rng>> max(Rng&& rng, Cmp pred = {})
+{
+    auto first = std::ranges::begin(rng);
+    auto last = std::ranges::end(rng);
+    using iterator_t = std::ranges::iterator_t<Rng>;
+
+    std::iter_value_t<iterator_t> maxValue = *first;
+    stdf::iter_root_t<iterator_t> root = stdf::iter_copy_root(first);
+    while(++first != last)
+    {
+        auto&& tmp = *first;
+        if(std::invoke(pred, result, tmp)){
+            maxValue = (decltype(tmp) &&)tmp;
+            root = stdf::iter_copy_root(first);
+        }
+    }
+    return root;
+}
+```
+
+As you can see, the only option is to copy both root and projected value which
+is not acceptable from the performance point of view. This problem exists only
+for input ranges and vanishes with forward ranges because for them it's safe to
+copy the iterator and call its `operator*()` to get the projected value.
+However, there are still plenty of algorithms which require only `input_range`
+so the proposed design cannot be used in its current form. Any potential
+projection replacement should be able to retrieve projected value from the root
+value, not from the iterator.
+
+---
+
 ## Other use-cases {#other-use-cases}
 
 Introduced design significantly simplifies creation of non-trivial iterators.
@@ -1135,12 +1211,12 @@ projection and a range but currently it's mostly useless for that purpose.
 Its `iter_move()` operates on transformed value while `iter_swap` operates on
 the underlying non-transformed value so you can't use it with any algorithm that
 might use
-them both(like `sort()`, see the
+them both (like `sort()`, see the
 [issue 3520](https://cplusplus.github.io/LWG/issue3520)). The
 proposed fix is to remove customized `iter_swap()` so that the default version
 will operate on transformed value. With that fix,
 `views::transform` will become almost the same as
-`narrow_projection`(the only difference is that, for unknown reason,
+`narrow_projection` (the only difference is that, for unknown reason,
 `views::transform` has [customized](https://eel.is/c++draft/range.transform.iterator) 
 `iter_move()` which behaves exactly like [the
 default one](https://eel.is/c++draft/iterator.cust.move#1.2)). But should it
